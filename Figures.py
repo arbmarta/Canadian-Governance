@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from pathlib import Path
 
+## ------------------------------------------------- SETTINGS -------------------------------------------------
+USE_SIMPLIFIED = True  # Set to False to use original shapefile
+
 ## ------------------------------------------------- FIGURE FILE PATHS -------------------------------------------------
 FIGURE_DIR = Path("Figures")
 FIGURE_DIR.mkdir(exist_ok=True)
@@ -11,7 +14,9 @@ PROF_ASSOC_FIG = FIGURE_DIR / "Figure 2: Arboricultural Governance.pdf"
 RIGHT_TO_PRACTICE_FIG = FIGURE_DIR / "Figure 3: Right to Practice.pdf"
 
 ## ------------------------------------------------- IMPORT SHAPEFILE --------------------------------------------------
-gdf = gpd.read_file("Shapefile/Provinces.gpkg")
+# Determine which shapefile to use
+shapefile_path = "Shapefile/Provinces_simplified.gpkg" if USE_SIMPLIFIED else "Shapefile/Provinces.gpkg"
+gdf = gpd.read_file(shapefile_path)
 
 # Standardize province codes
 mapping = {"N.L.": "NL", "P.E.I.": "PE", "N.S.": "NS", "N.B.": "NB",
@@ -19,14 +24,9 @@ mapping = {"N.L.": "NL", "P.E.I.": "PE", "N.S.": "NS", "N.B.": "NB",
            "Alta.": "AB", "B.C.": "BC", "Y.T.": "YT", "N.W.T.": "NT", "Nvt.": "NU"}
 gdf["PREABBR"] = gdf["PREABBR"].replace(mapping)
 
-# Simplify geometry if it's too complex (optional but can help significantly)
-gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.01, preserve_topology=True)
-
 ## ---------------------------------------------- HELPER FUNCTION -----------------------------------------------
 def assign_colors(gdf, provinces, color_active="#1f78b4", color_inactive="#ffffff"):
-    """Vectorized color assignment - much faster than apply()"""
     return gdf["PREABBR"].isin(provinces).map({True: color_active, False: color_inactive})
-
 
 ## ---------------------------------------------- REGULATORY BODY FIGURE -----------------------------------------------
 if not REG_BODY_FIG.exists():
@@ -45,7 +45,7 @@ if not REG_BODY_FIG.exists():
         ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(REG_BODY_FIG, dpi=150)  # Added dpi for better quality
+    fig.savefig(REG_BODY_FIG, dpi=450)  # Added dpi for better quality
     plt.close(fig)
     print(f"Saved: {REG_BODY_FIG}")
 
@@ -68,7 +68,7 @@ if not PROF_ASSOC_FIG.exists():
         ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(PROF_ASSOC_FIG, dpi=150)
+    fig.savefig(PROF_ASSOC_FIG, dpi=450)
     plt.close(fig)
     print(f"Saved: {PROF_ASSOC_FIG}")
 
@@ -88,6 +88,6 @@ if not RIGHT_TO_PRACTICE_FIG.exists():
         ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(RIGHT_TO_PRACTICE_FIG, dpi=150)
+    fig.savefig(RIGHT_TO_PRACTICE_FIG, dpi=450)
     plt.close(fig)
     print(f"Saved: {RIGHT_TO_PRACTICE_FIG}")
