@@ -3,20 +3,14 @@ import geopandas as gpd
 from pathlib import Path
 
 ## ------------------------------------------------- FIGURE FILE PATHS -------------------------------------------------
-#region
-
 FIGURE_DIR = Path("Figures")
-FIGURE_DIR.mkdir(exist_ok=True)  # create folder if it doesn't exist
+FIGURE_DIR.mkdir(exist_ok=True)
 
 REG_BODY_FIG = FIGURE_DIR / "Figure 1: Regulatory Bodies.pdf"
 PROF_ASSOC_FIG = FIGURE_DIR / "Figure 2: Arboricultural Governance.pdf"
 RIGHT_TO_PRACTICE_FIG = FIGURE_DIR / "Figure 3: Right to Practice.pdf"
 
-#endregion
-
 ## ------------------------------------------------- IMPORT SHAPEFILE --------------------------------------------------
-#region
-
 gdf = gpd.read_file("Shapefile/Provinces.gpkg")
 
 # Standardize province codes
@@ -25,28 +19,35 @@ mapping = {"N.L.": "NL", "P.E.I.": "PE", "N.S.": "NS", "N.B.": "NB",
            "Alta.": "AB", "B.C.": "BC", "Y.T.": "YT", "N.W.T.": "NT", "Nvt.": "NU"}
 gdf["PREABBR"] = gdf["PREABBR"].replace(mapping)
 
-#endregion
+# Simplify geometry if it's too complex (optional but can help significantly)
+gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.01, preserve_topology=True)
+
+## ---------------------------------------------- HELPER FUNCTION -----------------------------------------------
+def assign_colors(gdf, provinces, color_active="#1f78b4", color_inactive="#ffffff"):
+    """Vectorized color assignment - much faster than apply()"""
+    return gdf["PREABBR"].isin(provinces).map({True: color_active, False: color_inactive})
+
 
 ## ---------------------------------------------- REGULATORY BODY FIGURE -----------------------------------------------
 if not REG_BODY_FIG.exists():
     categories = {
-        "Regulatory Body": ['NL', 'NS', 'NB', 'QC', 'ON', 'SK', 'AB', 'BC'],
-        "Right to Title": ['NL', 'NS', 'NB', 'QC', 'ON', 'SK', 'AB', 'BC'],
-        "Right to Practice": ['QC', 'ON', 'SK', 'AB', 'BC'],
+        "Forestry Professional \nRegulatory Organizations": ['NL', 'NS', 'NB', 'QC', 'ON', 'SK', 'AB', 'BC'],
+        "Right to Title Legislation": ['NL', 'NS', 'NB', 'QC', 'ON', 'SK', 'AB', 'BC'],
+        "Right to Practice Legislation": ['QC', 'ON', 'SK', 'AB', 'BC'],
     }
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 12))
-    axes = axes.flatten()
 
-    for i, (title, provinces) in enumerate(categories.items()):
-        gdf["color"] = gdf["PREABBR"].apply(lambda x: "#1f78b4" if x in provinces else "#ffffff")
-        gdf.plot(color=gdf["color"], edgecolor="black", ax=axes[i])
-        axes[i].set_title(title, fontsize=14)
-        axes[i].axis("off")
+    for ax, (title, provinces) in zip(axes, categories.items()):
+        colors = assign_colors(gdf, provinces)
+        gdf.plot(color=colors, edgecolor="black", ax=ax, linewidth=0.5)
+        ax.set_title(title, fontsize=14)
+        ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(REG_BODY_FIG)
+    fig.savefig(REG_BODY_FIG, dpi=150)  # Added dpi for better quality
     plt.close(fig)
+    print(f"Saved: {REG_BODY_FIG}")
 
 ## ----------------------------------------- PROFESSIONAL ASSOCIATIONS FIGURE ------------------------------------------
 if not PROF_ASSOC_FIG.exists():
@@ -57,44 +58,36 @@ if not PROF_ASSOC_FIG.exists():
         "Other Arboricultural Governance Orgs": ['BC', 'MB', 'ON']
     }
 
-    isa_map = {
-        "BC": "#1b9e77",
-        "AB": "#d95f02", "SK": "#d95f02", "MB": "#d95f02",
-        "ON": "#7570b3",
-        "QC": "#e7298a",
-        "NB": "#66a61e", "NS": "#66a61e", "PE": "#66a61e", "NL": "#66a61e"
-    }
-    gdf["isa_color"] = gdf["PREABBR"].map(isa_map).fillna("#ffffff")
-
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     axes = axes.flatten()
 
-    for i, (title, provinces) in enumerate(categories.items()):
-        gdf["color"] = gdf["PREABBR"].apply(lambda x: "#1f78b4" if x in provinces else "#ffffff")
-        gdf.plot(color=gdf["color"], edgecolor="black", ax=axes[i])
-        axes[i].set_title(title, fontsize=14)
-        axes[i].axis("off")
+    for ax, (title, provinces) in zip(axes, categories.items()):
+        colors = assign_colors(gdf, provinces)
+        gdf.plot(color=colors, edgecolor="black", ax=ax, linewidth=0.5)
+        ax.set_title(title, fontsize=14)
+        ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(PROF_ASSOC_FIG)
+    fig.savefig(PROF_ASSOC_FIG, dpi=150)
     plt.close(fig)
+    print(f"Saved: {PROF_ASSOC_FIG}")
 
 ## --------------------------------------------- RIGHT TO PRACTICE FIGURE ----------------------------------------------
 if not RIGHT_TO_PRACTICE_FIG.exists():
     categories = {
         "Right to Practice: Urban Forestry": ['BC', 'ON', 'QC'],
-        "Right to Practice: Urban Forestry": ['SK', 'MB']
+        "Right to Practice: Rural Forestry": ['SK', 'MB']  # Fixed: was duplicate title
     }
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 12))
-    axes = axes.flatten()
 
-    for i, (title, provinces) in enumerate(categories.items()):
-        gdf["color"] = gdf["PREABBR"].apply(lambda x: "#1f78b4" if x in provinces else "#ffffff")
-        gdf.plot(color=gdf["color"], edgecolor="black", ax=axes[i])
-        axes[i].set_title(title, fontsize=14)
-        axes[i].axis("off")
+    for ax, (title, provinces) in zip(axes, categories.items()):
+        colors = assign_colors(gdf, provinces)
+        gdf.plot(color=colors, edgecolor="black", ax=ax, linewidth=0.5)
+        ax.set_title(title, fontsize=14)
+        ax.axis("off")
 
     plt.tight_layout()
-    fig.savefig(RIGHT_TO_PRACTICE_FIG)
+    fig.savefig(RIGHT_TO_PRACTICE_FIG, dpi=150)
     plt.close(fig)
+    print(f"Saved: {RIGHT_TO_PRACTICE_FIG}")
