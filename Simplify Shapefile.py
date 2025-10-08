@@ -11,7 +11,7 @@ mapping = {"N.L.": "NL", "P.E.I.": "PE", "N.S.": "NS", "N.B.": "NB",
 gdf["PREABBR"] = gdf["PREABBR"].replace(mapping)
 
 # Simplify geometry
-gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.1, preserve_topology=True)
+gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.5, preserve_topology=True)
 
 # Save simplified version
 gdf.to_file("Shapefile/Provinces_simplified.gpkg", driver="GPKG")
