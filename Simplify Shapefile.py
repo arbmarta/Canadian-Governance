@@ -22,6 +22,6 @@ print(f"Simplified saved to: Shapefile/Provinces_simplified.gpkg")
 
 # Show simplified map
 gdf.plot(edgecolor="black", color="#d0e3f0")
-plt.title("Simplified Provinces (Tolerance = 0.1)")
+plt.title("Simplified Provinces (Tolerance = 0.5)")
 plt.axis("off")
 plt.show()
