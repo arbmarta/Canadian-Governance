@@ -176,4 +176,7 @@ if __name__ == "__main__":
     # Add the descriptive text
     add_text(ax)
 
+    plt.savefig('Figures/Figure 1 - Tetrahedron.pdf', dpi=450)
+    plt.savefig('Figures/Figure 1 - Tetrahedron.png', dpi=450)
+
     plt.show()
