@@ -10,7 +10,7 @@ provinces = gpd.read_file(gpkg_path)
 
 province_acronyms = {
     'Newfoundland and Labrador / Terre-Neuve-et-Labrador': 'NL',
-    'Prince Edward Island / Île-du-Prince-Édouard': 'PE',
+    'Prince Edward Island / Île-du-Prince-Édouard': 'PEI',
     'Nova Scotia / Nouvelle-Écosse': 'NS',
     'New Brunswick / Nouveau-Brunswick': 'NB',
     'Quebec / Québec': 'QC',
@@ -39,48 +39,26 @@ def plot_2x2_panels(
         atlantic_offset_y_frac=0.03,
         atlantic_manual_offsets=None,
         per_province=None,
-        icon_vertical_gap_frac=0.02,
-        legend_items=None,
-        legend_loc='upper right',
+        panel_legend_items=None,  # Changed to panel-specific
+        title_y=0.98,  # Control title vertical position (0-1, higher = closer to top)
+        legend_bbox=(0.75, 0.96),  # Control legend position (x, y) in figure coordinates
+        label_bbox=False,  # Control whether labels have grey background boxes
         save_path=None,
-        verbose=True
 ):
-
     if len(panel_definitions) != 4:
         raise ValueError("panel_definitions must be a list/tuple of 4 items (2x2 grid).")
 
     per_province = per_province or {}
     atlantic_manual_offsets = atlantic_manual_offsets or {}
+    panel_legend_items = panel_legend_items or {}
 
-    # color assignment defaults
-    grey_acrs = {'AB', 'SK', 'NL', 'NB', 'NS'}
-    dark_green_acrs = {'BC', 'QC'}
-    light_green_acrs = {'ON'}
-    other_color = "#D3D3D3"
-
-    acr_to_color = {}
-    for acr in gdf['ACRONYM'].dropna().unique():
-        if acr in grey_acrs:
-            acr_to_color[acr] = "#808080"
-        elif acr in dark_green_acrs:
-            acr_to_color[acr] = "#006400"
-        elif acr in light_green_acrs:
-            acr_to_color[acr] = "#8FBC8F"
-        else:
-            acr_to_color[acr] = other_color
-
-    # override with legend_items if provided
-    legend_handles = []
-    if legend_items:
-        for label, (color, acrs) in legend_items.items():
-            for a in acrs:
-                acr_to_color[a] = color
-            legend_handles.append(Patch(facecolor=color, edgecolor='black', label=label))
-    else:
-        legend_handles.append(Patch(facecolor="#808080", edgecolor='black', label="AB / SK / NL / NB / NS"))
-        legend_handles.append(Patch(facecolor="#006400", edgecolor='black', label="BC / QC"))
-        legend_handles.append(Patch(facecolor="#8FBC8F", edgecolor='black', label="ON"))
-        legend_handles.append(Patch(facecolor=other_color, edgecolor='black', label="Other"))
+    # Set defaults for new parameters
+    if title_y is None:
+        title_y = 0.98
+    if legend_bbox is None:
+        legend_bbox = (0.75, 0.96)
+    if label_bbox is None:
+        label_bbox = False
 
     def validate_xy(xy):
         if xy is None:
@@ -110,24 +88,58 @@ def plot_2x2_panels(
 
     x_off_global = overall_xspan * atlantic_offset_x_frac
     y_off_global = overall_yspan * atlantic_offset_y_frac
-    icon_vertical_gap = overall_yspan * icon_vertical_gap_frac
 
     # create 2x2 axes
     fig, axes = plt.subplots(2, 2, figsize=figsize)
     axes = axes.flatten()
 
     # iterate panels
-    for ax, (title, panel_acronyms) in zip(axes, panel_definitions):
+    for panel_idx, (ax, (title, panel_acronyms)) in enumerate(zip(axes, panel_definitions)):
+        # Get panel-specific legend items if provided
+        legend_items = panel_legend_items.get(panel_idx, {})
+
+        # Build color map for this panel
+        acr_to_color = {}
+        acr_to_linestyle = {}
+        for acr in gdf['ACRONYM'].dropna().unique():
+            acr_to_color[acr] = 'white'  # Default to white
+            acr_to_linestyle[acr] = 'solid'
+
+        # Apply legend colors to this panel
+        for label, settings in legend_items.items():
+            color = settings['color']
+            acrs = settings['acronyms']
+            linestyle = settings.get('linestyle', 'solid')
+            for a in acrs:
+                acr_to_color[a] = color
+                acr_to_linestyle[a] = linestyle
+
         # base map boundaries (context)
         gdf.boundary.plot(ax=ax, color='black', linewidth=0.25, zorder=1)
 
         # prepare plot coloring: fill only panel-selected provinces
         gdf_plot = gdf.copy()
-        gdf_plot['fill_color'] = other_color
-        for acr in gdf_plot['ACRONYM'].dropna().unique():
+        gdf_plot['fill_color'] = 'white'
+        gdf_plot['edge_style'] = 'solid'
+
+        for _, row in gdf_plot.iterrows():
+            acr = row['ACRONYM']
             if acr in panel_acronyms:
-                gdf_plot.loc[gdf_plot['ACRONYM'] == acr, 'fill_color'] = acr_to_color.get(acr, other_color)
-        gdf_plot.plot(ax=ax, color=gdf_plot['fill_color'], edgecolor='black', linewidth=0.35, zorder=2)
+                gdf_plot.loc[gdf_plot['ACRONYM'] == acr, 'fill_color'] = acr_to_color.get(acr, 'white')
+                gdf_plot.loc[gdf_plot['ACRONYM'] == acr, 'edge_style'] = acr_to_linestyle.get(acr, 'solid')
+
+        # Plot provinces with appropriate styling
+        for _, row in gdf_plot.iterrows():
+            linestyle = row['edge_style']
+            color = row['fill_color']
+            gdf_plot[gdf_plot.index == row.name].plot(
+                ax=ax,
+                color=color,
+                edgecolor='black',
+                linewidth=0.35,
+                linestyle=linestyle,
+                zorder=2
+            )
 
         # labels for all provinces
         atlantic_set = {'NL', 'PE', 'NS', 'NB'}
@@ -168,7 +180,7 @@ def plot_2x2_panels(
 
             # fontsize and bbox
             fontsize = per_province.get(acr, {}).get('fontsize', 10)
-            bbox_flag = per_province.get(acr, {}).get('bbox', True)
+            bbox_flag = per_province.get(acr, {}).get('bbox', label_bbox)  # Use global default
             if bbox_flag:
                 bbox_kwargs = dict(boxstyle="round,pad=0.12", fc="#F5F5F5", ec='none', alpha=0.95)
                 ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center', fontweight='bold', zorder=5,
@@ -177,15 +189,23 @@ def plot_2x2_panels(
                 ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center', fontweight='bold', zorder=5)
 
         # title for the panel
-        ax.set_title(title, fontsize=11, fontweight='bold')
+        ax.set_title(title, fontsize=11, fontweight='bold', y=title_y)
 
         # ALL PANELS USE THE SAME EXTENT (no zoom)
         ax.set_xlim(xmin_p, xmax_p)
         ax.set_ylim(ymin_p, ymax_p)
         ax.set_axis_off()
 
-    # overall legend
-    if legend_handles:
+    # overall legend - build from panel 0's legend items as example
+    if 0 in panel_legend_items and panel_legend_items[0]:
+        legend_handles = []
+        for label, settings in panel_legend_items[0].items():
+            legend_handles.append(Patch(
+                facecolor=settings['color'],
+                edgecolor='black',
+                linestyle=settings.get('linestyle', 'solid'),
+                label=label
+            ))
         fig.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(0.98, 0.96), frameon=True, fontsize=9)
 
     plt.tight_layout(rect=[0, 0, 0.98, 0.98])
@@ -194,26 +214,67 @@ def plot_2x2_panels(
     plt.show()
     return fig, axes
 
-
 # -------------------------
-# Define panels
+# Define panels with custom coloring per panel
 # -------------------------
 panel_definitions = [
-    ("Professional Regulatory Organizations", ['BC', 'SK']),
-    ("Skilled Trade Agencies", ['BC', 'ON', 'QC', 'NS', 'NB']),
-    ("ISA Chapter", ['BC', 'AB', 'SK', 'MB', 'ON']),
+    ("Forestry Professional\nRegulatory Organizations", ['BC', 'AB', 'SK', 'ON', 'QC', 'NL', 'NS', 'NB']),
+    ("Apprenticeship and Skilled Trades Agency", ['BC', 'ON', 'QC', 'NS', 'NB']),
+    ("International Society\nof Arboriculture Chapters", ['BC', 'AB', 'SK', 'MB', 'ON', 'QC', 'NL', 'PEI', 'NS', 'NB']),
     ("Other Arboricultural Professional Associations", ['BC', 'ON', 'MB']),
 ]
+
+# Define colors per panel
+panel_legend_items = {
+    0: {  # Panel 0: Forestry Professional Regulatory Organizations
+        "PRO engaged in urban forestry": {
+            "color": "#006400",
+            "acronyms": ['BC', 'ON', 'QC']
+        },
+        "PRO not engaged in urban forestry": {
+            "color": "#8FBC8F",
+            "acronyms": ['ON']
+        }
+    },
+    1: {  # Panel 1: Apprenticeship and Skilled Trades Agencies
+        "In effect": {
+            "color": "#006400",
+            "acronyms": ['BC', 'ON', 'NS', 'NB']
+        },
+        "Coming into effect": {
+            "color": "#8FBC8F",
+            "acronyms": ['QC']
+        },
+    },
+    2: {  # Panel 2: ISA Chapter
+        "Pacific Northwest Chapter": {
+            "color": "#006400",
+            "acronyms": ['BC']
+        },
+        "Prairie Chapter": {
+            "color": "#006400",
+            "acronyms": ['AB', 'SK', 'MB'],
+        },
+        "Ontario Chapter": {
+            "color": "#8FBC8F",
+            "acronyms": ['ON']
+        },
+        "Atlantic Chapter": {
+            "color": "#808080",
+            "acronyms": ['NL', 'PEI', 'NS', 'NB']
+        }
+    },
+    3: {  # Panel 3: Other Arboricultural Professional Associations
+        "Dark green (BC)": {
+            "color": "#006400",
+            "acronyms": ['BC', 'MB', 'ON']
+        }
+    }
+}
 
 per_province_example = {
     'BC': {'xy': None, 'fontsize': 12, 'bbox': True},
     'NL': {'xy': None, 'fontsize': 9, 'bbox': True}
-}
-
-legend_items_example = {
-    "Grey (AB/SK/NL/NB/NS)": ("#808080", ['AB', 'SK', 'NL', 'NB', 'NS']),
-    "Dark green (BC/QC)": ("#006400", ['BC', 'QC']),
-    "Light green (ON)": ("#8FBC8F", ['ON']),
 }
 
 # -------------------------
@@ -227,9 +288,9 @@ fig, axes = plot_2x2_panels(
     north_extra=0.09,
     atlantic_manual_offsets=None,
     per_province=per_province_example,
-    icon_vertical_gap_frac=0.02,
-    legend_items=legend_items_example,
-    legend_loc='upper right',
-    save_path=None,
-    verbose=True
+    panel_legend_items=panel_legend_items,
+    title_y=1.02,  # Move titles closer to top (higher value = closer to top edge)
+    legend_bbox=(0.75, 0.96),  # Move legend more toward center (lower x value = more centered)
+    label_bbox=False,  # Remove grey background from province labels
+    save_path=None
 )
