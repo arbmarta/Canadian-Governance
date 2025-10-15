@@ -1,12 +1,15 @@
 import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.patches import Patch
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.image as mpimg
+import os
 
-# Load shapefile / geopackage
+# --- Load provinces (adjust path as needed) ---
 provinces = gpd.read_file('Shapefile/Simplified provinces - 10 km.gpkg')
 
-# Province acronyms mapping (same as you had)
-province_accronyms = {
+# --- Acronyms mapping (same as before) ---
+province_acronyms = {
     'Newfoundland and Labrador / Terre-Neuve-et-Labrador': 'NL',
     'Prince Edward Island / Île-du-Prince-Édouard': 'PE',
     'Nova Scotia / Nouvelle-Écosse': 'NS',
@@ -21,130 +24,269 @@ province_accronyms = {
     'Northwest Territories / Territoires du Nord-Ouest': 'NT',
     'Nunavut': 'NU'
 }
+provinces['ACRONYM'] = provinces['PRNAME'].map(province_acronyms)
 
-# Figure items (same structure)
-class Figure2:
-    class RegulatoryBodies:
-        forestry = ['AB', 'SK', 'NL', 'PE', 'NS', 'NB']
-        urban_forestry = ['BC', 'ON', 'QC']
 
-    class RightToTitle:
-        forestry = ['AB', 'SK', 'NL', 'PE', 'NS', 'NB', 'BC', 'ON', 'QC']
-        arboriculture = ['MB']
+def plot_map_with_icons_below_labels(
+    fire_icon_path="Figures/fire.png",
+    warn_icon_path="Figures/warning.png",
+    target_acronyms=None,
+    gdf=provinces,
+    figsize=(10, 10),
+    pad=0.04,
+    north_extra=0.08,
+    atlantic_offset_x_frac=0.06,
+    atlantic_offset_y_frac=0.03,
+    atlantic_manual_offsets=None,
+    legend_items=None,
+    legend_loc='upper right',
+    fire_size_pct=8.0,
+    warn_size_pct=8.0,
+    per_province=None,
+    icon_nudge_x_frac=0.0,
+    icon_vertical_gap_frac=0.02,
+    icon_zoom_mode='pct',  # currently only 'pct' supported (zoom = pct/100)
+    save_path=None
+):
+    """
+    Single-panel map that plots province acronyms and places icon images below the label.
+    - fire_size_pct, warn_size_pct : floats 0..100 meaning percent scale applied to native image size (used as OffsetImage zoom factor = pct/100).
+    - per_province : dict mapping ACR -> dict with optional keys:
+         'xy': (x,y)         -> explicit map coords for label (overrides centroid / atlantic offsets)
+         'fontsize': float   -> font size for the label
+         'bbox': bool        -> whether to draw a light grey bbox behind the label
+         'label_offset': (dx, dy) -> extra offset in data units applied to label position after xy
+    - icons are placed below label: fire first, warning below fire. If fire not placed for that province, warning goes directly under label.
+    - icon_vertical_gap_frac: fraction of y-span used to space icons vertically.
+    """
 
-    class RightToPractice:
-        forestry = ['AB', 'SK', 'BC', 'ON', 'QC']
-        urban_forestry = ['BC', 'ON', 'QC']
-        arboriculture = ['MB', 'SK']
+    # --- check image files exist ---
+    if not os.path.isfile(fire_icon_path):
+        raise FileNotFoundError(f"Fire icon not found: {fire_icon_path}")
+    if not os.path.isfile(warn_icon_path):
+        raise FileNotFoundError(f"Warning icon not found: {warn_icon_path}")
 
-# Map province names to acronyms
-provinces['ACRONYM'] = provinces['PRNAME'].map(province_accronyms)
+    fire_img = mpimg.imread(fire_icon_path)
+    warn_img = mpimg.imread(warn_icon_path)
 
-# Some handy constants
-atlantic = {'NL', 'PE', 'NS', 'NB'}
+    # --- selection for bbox/plotting ---
+    if target_acronyms is None:
+        selected = gdf[gdf['ACRONYM'].notna()].copy()
+    else:
+        selected = gdf[gdf['ACRONYM'].isin(target_acronyms)].copy()
 
-# subplot layout: 1 row x 3 cols
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    if selected.empty:
+        raise ValueError("No provinces found for the provided acronyms / mapping.")
 
-# Define the groups (name, (list of subgroup-name, list of acronyms, colour)) for each of the 3 panels
-panel_specs = [
-    # Regulatory Bodies: forestry vs urban forestry
-    (
-        "Professional Regulatory Organizations (PROs)",
-        [
-            ("Forestry PROs", Figure2.RegulatoryBodies.forestry, "#4C72B0"),      # blue-ish
-            ("Forestry PROs Engaged in Urban Forestry", Figure2.RegulatoryBodies.urban_forestry, "#DD8452"),  # orange-ish
-        ],
-    ),
-    # Right to Title: forestry vs arboriculture
-    (
-        "Right to Title",
-        [
-            ("Right to Title for Arborists", Figure2.RightToTitle.arboriculture, "#C44E52"),  # red
-            ("Right to Title for RPFs", Figure2.RightToTitle.forestry, "#55A868"),  # green
-        ],
-    ),
-    # Right to Practice: forestry vs urban forestry vs arboriculture
-    (
-        "Right to Practice Arboriculture and Urban Forestry",
-        [
-            ("Right to Practice for Arboriculture", Figure2.RightToPractice.arboriculture, "#E377C2"),  # pink
-            ("Right to Practice for Urban Forestry", Figure2.RightToPractice.urban_forestry, "#8C8C8C"),  # gray
-        ],
-    ),
-]
+    # --- bbox + padding + north_extra ---
+    xmin, ymin, xmax, ymax = selected.total_bounds
+    xpad = (xmax - xmin) * pad
+    ypad = (ymax - ymin) * pad
+    xmin_p, xmax_p = xmin - xpad, xmax + xpad
+    ymin_p = ymin - ypad
+    ymax_p = ymax + ypad + (ymax - ymin) * north_extra
 
-# Pre-calc map extent size to compute sensible offsets for leader lines
-bounds = provinces.total_bounds  # (xmin, ymin, xmax, ymax)
-xspan = bounds[2] - bounds[0]
-yspan = bounds[3] - bounds[1]
-# offsets as fractions of the map span
-xoff_fraction = 0.06
-yoff_fraction = 0.03
+    # --- default colour groups ---
+    grey_acrs = {'AB', 'SK', 'NL', 'NB', 'NS'}
+    dark_green_acrs = {'BC', 'QC'}
+    light_green_acrs = {'ON'}
+    other_color = "#D3D3D3"
 
-for ax, (title, groups) in zip(axes, panel_specs):
-    # Plot base: all province boundaries
-    provinces.boundary.plot(ax=ax, color='black', linewidth=0.25)
-
-    # Plot each subgroup with its own color
-    legend_patches = []
-    for label, acronyms, color in groups:
-        mask = provinces['ACRONYM'].isin(acronyms)
-        if mask.any():
-            provinces[mask].plot(ax=ax, color=color, edgecolor='black')
-            legend_patches.append(Patch(facecolor=color, edgecolor='black', label=label))
-
-    # Labels: annotate each selected province with either centered text or offset with leader for Atlantic provinces
-    # We'll label all provinces that appear in any group on this panel.
-    panel_acronyms = set().union(*[set(acrs) for _, acrs, _ in groups])
-    selected = provinces[provinces['ACRONYM'].isin(panel_acronyms)]
-
-    for _, row in selected.iterrows():
-        acr = row['ACRONYM']
-        centroid = row.geometry.centroid
-        cx, cy = centroid.x, centroid.y
-
-        # If Atlantic province -> offset text to the right (or slightly above) with a connecting line
-        if acr in atlantic:
-            # compute an offset that scales to map extent
-            x_off = xspan * xoff_fraction
-            y_off = yspan * yoff_fraction
-
-            # Choose a slight vertical shift depending on province so labels don't overlap each other
-            # (quick heuristic)
-            if acr == 'NL':
-                text_xy = (cx + x_off, cy + y_off * 1.0)
-            elif acr == 'PE':
-                text_xy = (cx + x_off, cy + y_off * 1.5)
-            elif acr == 'NS':
-                text_xy = (cx + x_off, cy - y_off * 0.5)
-            else:  # NB
-                text_xy = (cx + x_off, cy - y_off * 1.0)
-
-            ax.annotate(
-                acr,
-                xy=(cx, cy),
-                xytext=text_xy,
-                fontsize=10,
-                fontweight='bold',
-                ha='left',
-                va='center',
-                arrowprops=dict(arrowstyle='-', linewidth=0.8, color='black', shrinkA=0, shrinkB=0),
-                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.8)
-            )
+    # build acronym -> color mapping
+    acr_to_color = {}
+    for acr in gdf['ACRONYM'].dropna().unique():
+        if acr in grey_acrs:
+            acr_to_color[acr] = "#808080"
+        elif acr in dark_green_acrs:
+            acr_to_color[acr] = "#006400"
+        elif acr in light_green_acrs:
+            acr_to_color[acr] = "#8FBC8F"
         else:
-            # default: place label at centroid
-            ax.text(cx, cy, acr, fontsize=10, ha='center', va='center', fontweight='bold')
+            acr_to_color[acr] = other_color
 
-    # Title & styling
-    ax.set_title(title, fontsize=13, fontweight='bold')
+    # override colors with legend_items if provided (and build legend handles)
+    legend_handles = []
+    if legend_items:
+        for label, (color, acrs) in legend_items.items():
+            for a in acrs:
+                acr_to_color[a] = color
+            legend_handles.append(Patch(facecolor=color, edgecolor='black', label=label))
+    else:
+        legend_handles.append(Patch(facecolor="#808080", edgecolor='black', label="AB / SK / NL / NB / NS"))
+        legend_handles.append(Patch(facecolor="#006400", edgecolor='black', label="BC / QC"))
+        legend_handles.append(Patch(facecolor="#8FBC8F", edgecolor='black', label="ON"))
+        legend_handles.append(Patch(facecolor=other_color, edgecolor='black', label="Other"))
+
+    # prepare per_province defaults
+    if per_province is None:
+        per_province = {}
+    # expected per_province structure:
+    # { 'BC': {'xy': (x,y), 'fontsize': 12, 'bbox': True, 'label_offset':(dx,dy)}, ... }
+
+    # atlantic manual offsets (if provided)
+    if atlantic_manual_offsets is None:
+        atlantic_manual_offsets = {}
+
+    # spans for offset scaling
+    bounds = gdf.total_bounds
+    xspan = bounds[2] - bounds[0] if (bounds[2] - bounds[0]) != 0 else 1.0
+    yspan = bounds[3] - bounds[1] if (bounds[3] - bounds[1]) != 0 else 1.0
+    x_off = xspan * atlantic_offset_x_frac
+    y_off = yspan * atlantic_offset_y_frac
+    icon_vertical_gap = yspan * icon_vertical_gap_frac  # vertical gap between label and icons (data units)
+
+    # which provinces get icons
+    fire_acrs = {'BC', 'AB', 'SK', 'MB'}
+    warn_acrs = {'BC', 'ON'}
+
+    # compute zoom factor for icons: current implementation uses pct/100 as OffsetImage zoom
+    if icon_zoom_mode != 'pct':
+        raise ValueError("Only icon_zoom_mode='pct' is supported currently.")
+    fire_zoom = max(0.0, float(fire_size_pct)) / 100.0
+    warn_zoom = max(0.0, float(warn_size_pct)) / 100.0
+
+    # helper to add icon with zoom in data coords
+    def add_icon(ax, img_arr, xy, zoom=0.05, zorder=12):
+        im = OffsetImage(img_arr, zoom=zoom)
+        ab = AnnotationBbox(im, xy,
+                            frameon=False,
+                            pad=0.0,
+                            box_alignment=(0.5, 0.5),
+                            zorder=zorder)
+        ax.add_artist(ab)
+
+    # --- plot base map ---
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    gdf.boundary.plot(ax=ax, color='black', linewidth=0.25, zorder=1)
+
+    gdf_plot = gdf.copy()
+    gdf_plot['fill_color'] = gdf_plot['ACRONYM'].map(acr_to_color).fillna(other_color)
+    gdf_plot.plot(ax=ax, color=gdf_plot['fill_color'], edgecolor='black', linewidth=0.35, zorder=2)
+
+    # --- label & icon placement ---
+    atlantic_set = {'NL', 'PE', 'NS', 'NB'}
+
+    for _, row in gdf[gdf['ACRONYM'].notna()].iterrows():
+        acr = row['ACRONYM']
+        # determine label position (explicit per_province.xy > atlantic manual offsets > centroid)
+        if acr in per_province and 'xy' in per_province[acr]:
+            label_x, label_y = per_province[acr]['xy']
+        elif acr in atlantic_manual_offsets:
+            label_x, label_y = atlantic_manual_offsets[acr]
+        elif acr in atlantic_set:
+            # dynamic default positions for atlantic as before (right & above/below)
+            centroid = row.geometry.centroid
+            cx, cy = centroid.x, centroid.y
+            if acr == 'NL':
+                label_x, label_y = cx + x_off, cy + y_off * 1.0
+            elif acr == 'PE':
+                label_x, label_y = cx + x_off, cy + y_off * 1.5
+            elif acr == 'NS':
+                label_x, label_y = cx + x_off, cy - y_off * 0.5
+            else:  # NB
+                label_x, label_y = cx + x_off, cy - y_off * 1.0
+        else:
+            # default: centroid
+            centroid = row.geometry.centroid
+            label_x, label_y = centroid.x, centroid.y
+
+        # apply label_offset if provided
+        if acr in per_province and 'label_offset' in per_province[acr]:
+            dx, dy = per_province[acr]['label_offset']
+            label_x += dx
+            label_y += dy
+
+        # determine fontsize and bbox flag
+        fontsize = per_province.get(acr, {}).get('fontsize', 11)
+        bbox_flag = per_province.get(acr, {}).get('bbox', True)
+
+        # draw label
+        if bbox_flag:
+            bbox_kwargs = dict(boxstyle="round,pad=0.12", fc="#F5F5F5", ec='none', alpha=0.95)
+        else:
+            bbox_kwargs = None
+
+        if bbox_kwargs:
+            ax.text(label_x, label_y, acr,
+                    fontsize=fontsize, ha='center', va='center',
+                    fontweight='bold', zorder=5,
+                    bbox=bbox_kwargs)
+        else:
+            ax.text(label_x, label_y, acr,
+                    fontsize=fontsize, ha='center', va='center',
+                    fontweight='bold', zorder=5)
+
+        # compute icon positions below label:
+        # First icon (fire) sits directly below label: y_fire = label_y - icon_vertical_gap
+        # Second icon (warn) sits below fire: y_warn = y_fire - icon_vertical_gap
+        # If fire not required for this acr, place warn at label_y - icon_vertical_gap
+        icon_x = label_x + (xspan * icon_nudge_x_frac)  # allow small horizontal nudge fraction
+        y_fire = label_y - icon_vertical_gap
+        y_warn = y_fire - icon_vertical_gap
+
+        # Place fire icon if needed
+        has_fire = (acr in fire_acrs)
+        has_warn = (acr in warn_acrs)
+
+        if has_fire:
+            add_icon(ax, fire_img, (icon_x, y_fire), zoom=fire_zoom, zorder=11)
+            # place warning below fire if present
+            if has_warn:
+                add_icon(ax, warn_img, (icon_x, y_warn), zoom=warn_zoom, zorder=12)
+        else:
+            # no fire: if warning exists, place it directly below label
+            if has_warn:
+                add_icon(ax, warn_img, (icon_x, y_fire), zoom=warn_zoom, zorder=12)
+
+    # --- legend ---
+    if legend_handles:
+        ax.legend(handles=legend_handles, loc=legend_loc, frameon=True, fontsize=9)
+
+    # set extent and style
+    ax.set_xlim(xmin_p, xmax_p)
+    ax.set_ylim(ymin_p, ymax_p)
     ax.set_axis_off()
+    plt.tight_layout()
 
-    # Add legend for this panel (outside lower-left of the panel)
-    if legend_patches:
-        ax.legend(handles=legend_patches, loc='lower left', frameon=True, fontsize=9)
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
 
-# layout adjustments
-plt.tight_layout()
-plt.subplots_adjust(top=0.88)  # make room for suptitle
-plt.show()
+    plt.show()
+    return fig, ax
+
+
+# -----------------------
+# Example usage:
+# -----------------------
+
+# Provide optional per-province overrides:
+per_province_example = {
+    # Example: place BC label slightly left and larger font with no bbox
+    'BC': {'xy': None, 'fontsize': 13, 'bbox': True},  # set 'xy':(x,y) to override centroid
+    # Example: place NL label manually (map coords must match your CRS)
+    # 'NL': {'xy': (-52.5, 53.0), 'fontsize': 10, 'bbox': True, 'label_offset': (0.2, 0.0)}
+}
+
+legend_items_example = {
+    "Grey group (AB/SK/NL/NB/NS)": ("#808080", ['AB','SK','NL','NB','NS']),
+    "Dark green (BC/QC)"         : ("#006400", ['BC','QC']),
+    "Light green (ON)"           : ("#8FBC8F", ['ON']),
+}
+
+fig, ax = plot_map_with_icons_below_labels(
+    fire_icon_path="Figures/fire.png",
+    warn_icon_path="Figures/warning.png",
+    target_acronyms=None,
+    pad=0.05,
+    north_extra=0.09,
+    atlantic_manual_offsets=None,
+    legend_items=legend_items_example,
+    legend_loc='upper right',
+    fire_size_pct=8.0,   # 8% of native image size (tweak until it looks right)
+    warn_size_pct=8.0,
+    per_province=per_province_example,
+    icon_nudge_x_frac=0.0,
+    icon_vertical_gap_frac=0.02,
+    figsize=(10,10),
+    save_path=None
+)
