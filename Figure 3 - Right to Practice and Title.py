@@ -29,7 +29,7 @@ provinces['ACRONYM'] = provinces['PRNAME'].map(province_acronyms)
 # -------------------------
 # Main plotting function
 # -------------------------
-def plot_2x2_panels(
+def plot_1x2_panels(
         panel_definitions,
         gdf=provinces,
         figsize=(14, 12),
@@ -44,9 +44,11 @@ def plot_2x2_panels(
         legend_bbox=(0.75, 0.96),
         label_bbox=False,
         save_path=None,
+        nrows=2,
+        ncols=2,
 ):
-    if len(panel_definitions) != 4:
-        raise ValueError("panel_definitions must be a list/tuple of 4 items (2x2 grid).")
+    if len(panel_definitions) != nrows * ncols:
+        raise ValueError(f"panel_definitions must have {nrows * ncols} items for a {nrows}x{ncols} grid.")
 
     per_province = per_province or {}
     atlantic_manual_offsets = atlantic_manual_offsets or {}
@@ -128,8 +130,8 @@ def plot_2x2_panels(
 
     print("=" * 70 + "\n")
 
-    # create 2x2 axes
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    # create 1x2 axes
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
     axes = axes.flatten()
 
     # iterate panels
@@ -244,7 +246,7 @@ def plot_2x2_panels(
                         fontweight='bold', zorder=5, color=text_color)
 
         # title for the panel
-        ax.set_title(title, fontsize=16, fontweight='bold', y=title_y)
+        ax.set_title(title, fontsize=13, fontweight='bold', y=title_y)
 
         # Add legend for this panel (skip panel 3)
         if legend_items and panel_idx != 3:
@@ -258,9 +260,9 @@ def plot_2x2_panels(
                 ))
             ax.legend(handles=panel_legend_handles,
                       loc='upper right',
-                      bbox_to_anchor=(1.05, 0.90),
+                      bbox_to_anchor=(0.98, 0.88),
                       frameon=False,
-                      fontsize=14)
+                      fontsize=11)
 
         # ALL PANELS USE THE SAME EXTENT (no zoom)
         ax.set_xlim(xmin_p, xmax_p)
@@ -287,62 +289,28 @@ panel_definitions = [
 # Define colors per panel
 panel_legend_items = {
     0: {
-        "Engaged in\nurban forestry": {
+        'Right to Title for "Urban Forester"': {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'QC'],
             "text_color": "white"  # White text on dark green
         },
-        "Not engaged in\nurban forestry": {
+        'Right to Title for "Arborist"': {
             "color": "#8FBC8F",
             "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB'],
             "text_color": "black"  # Black text on light green
         }
     },
     1: {
-        "In force": {
+        "In effect": {
             "color": "#006400",
-            "acronyms": ['BC', 'ON', 'NS', 'NB'],
+            "acronyms": ['BC', 'ON'],
             "text_color": "white"
         },
-        "Coming into force": {
-            "color": "#8FBC8F",
-            "acronyms": ['QC'],
+        "In effect ": {  # Note the space to make it unique
+            "color": "#006400",
+            "acronyms": ['NS', 'NB'],
             "text_color": "black"
         },
-    },
-    2: {
-        "Pacific Northwest": {
-            "color": "#009DAE",
-            "acronyms": ['BC'],
-            "text_color": "white"
-        },
-        "Prairie": {
-            "color": "#DFAF2C",
-            "acronyms": ['AB', 'SK', 'MB'],
-            "text_color": "black"
-        },
-        "Ontario": {
-            "color": "#D02E2E",
-            "acronyms": ['ON'],
-            "text_color": "white"
-        },
-        "Quebec": {
-            "color": "#003DA5",
-            "acronyms": ['QC'],
-            "text_color": "white"
-        },
-        "Atlantic": {
-            "color": "#0F52BA",
-            "acronyms": ['NL', 'PEI', 'NS', 'NB'],
-            "text_color": "black"  # Black text for Atlantic provinces
-        }
-    },
-    3: {
-        "Dark green (BC)": {
-            "color": "#006400",
-            "acronyms": ['BC', 'MB', 'ON'],
-            "text_color": "white"
-        }
     }
 }
 
@@ -388,7 +356,7 @@ per_province_example = {
 # -------------------------
 # Run plotting
 # -------------------------
-fig, axes = plot_2x2_panels(
+fig, axes = plot_1x2_panels(
     panel_definitions=panel_definitions,
     gdf=provinces,
     figsize=(14, 12),

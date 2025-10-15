@@ -249,13 +249,17 @@ def plot_2x2_panels(
         # Add legend for this panel (skip panel 3)
         if legend_items and panel_idx != 3:
             panel_legend_handles = []
+            seen_labels = set()  # Track unique labels
             for label, settings in legend_items.items():
-                panel_legend_handles.append(Patch(
-                    facecolor=settings['color'],
-                    edgecolor='black',
-                    linestyle=settings.get('linestyle', 'solid'),
-                    label=label
-                ))
+                clean_label = label.strip()  # Remove trailing/leading spaces
+                if clean_label not in seen_labels:
+                    seen_labels.add(clean_label)
+                    panel_legend_handles.append(Patch(
+                        facecolor=settings['color'],
+                        edgecolor='black',
+                        linestyle=settings.get('linestyle', 'solid'),
+                        label=clean_label  # Use cleaned label
+                    ))
             ax.legend(handles=panel_legend_handles,
                       loc='upper right',
                       bbox_to_anchor=(1.05, 0.90),
@@ -301,7 +305,12 @@ panel_legend_items = {
     1: {
         "In force": {
             "color": "#006400",
-            "acronyms": ['BC', 'ON', 'NS', 'NB'],
+            "acronyms": ['NS', 'NB'],
+            "text_color": "black"
+        },
+        "In force ": {
+            "color": "#006400",
+            "acronyms": ['BC', 'ON'],
             "text_color": "white"
         },
         "Coming into force": {
@@ -327,12 +336,12 @@ panel_legend_items = {
             "text_color": "white"
         },
         "Quebec": {
-            "color": "#003DA5",
+            "color": "#001A4D",
             "acronyms": ['QC'],
             "text_color": "white"
         },
         "Atlantic": {
-            "color": "#0F52BA",
+            "color": "#4A90E2",
             "acronyms": ['NL', 'PEI', 'NS', 'NB'],
             "text_color": "black"  # Black text for Atlantic provinces
         }
@@ -362,25 +371,25 @@ per_province_example = {
     'NL': {
         'xy': (8545714.44, 2732888.93),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8245714.44, 2492888.93)  # Offset from centroid
     },
     'PEI': {
         'xy': (8876373.85, 1734420.28),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8576373.85, 1784420.28)
     },
     'NS': {
         'xy': (8627052.60, 1373934.28),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8419100.60, 1425934.28)
     },
     'NB': {
         'xy': (7997731.26, 1194444.35),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8337731.26, 1414444.35)
     },
 }
@@ -398,5 +407,5 @@ fig, axes = plot_2x2_panels(
     per_province=per_province_example,
     panel_legend_items=panel_legend_items,
     title_y=.92,
-    save_path=None
+    save_path='Figures/Figure 2 - Actors.pdf'
 )
