@@ -57,7 +57,7 @@ def plot_2x2_panels(
             return False
         try:
             if hasattr(xy, '__iter__') and len(xy) == 2:
-                float(xy[0]);
+                float(xy[0])
                 float(xy[1])
                 return True
         except Exception:
@@ -80,6 +80,53 @@ def plot_2x2_panels(
 
     x_off_global = overall_xspan * atlantic_offset_x_frac
     y_off_global = overall_yspan * atlantic_offset_y_frac
+
+    # Print CRS and label coordinates for ALL provinces
+    print(f"GeoDataFrame CRS: {gdf.crs}")
+    print("\n" + "=" * 70)
+    print("PROVINCE LABEL COORDINATES")
+    print("=" * 70)
+
+    atlantic_set = {'NL', 'PEI', 'NS', 'NB'}
+
+    for _, row in gdf[gdf['ACRONYM'].notna()].iterrows():
+        acr = row['ACRONYM']
+
+        # Compute label position (same logic as in plotting)
+        if acr in per_province and 'xy' in per_province[acr] and validate_xy(per_province[acr]['xy']):
+            label_x, label_y = per_province[acr]['xy']
+            source = "per_province override"
+        elif acr in atlantic_manual_offsets and validate_xy(atlantic_manual_offsets.get(acr)):
+            label_x, label_y = atlantic_manual_offsets[acr]
+            source = "atlantic_manual_offsets"
+        elif acr in atlantic_set:
+            centroid = row.geometry.centroid
+            cx, cy = centroid.x, centroid.y
+            if acr == 'NL':
+                label_x, label_y = cx + x_off_global, cy + y_off_global * 1.0
+            elif acr == 'PEI':
+                label_x, label_y = cx + x_off_global, cy + y_off_global * 1.5
+            elif acr == 'NS':
+                label_x, label_y = cx + x_off_global, cy - y_off_global * 0.5
+            else:  # NB
+                label_x, label_y = cx + x_off_global, cy - y_off_global * 1.0
+            source = "Atlantic offset calculation"
+        else:
+            centroid = row.geometry.centroid
+            label_x, label_y = centroid.x, centroid.y
+            source = "Centroid"
+
+        # Apply label_offset if provided
+        if acr in per_province and 'label_offset' in per_province[acr] and validate_xy(
+                per_province[acr]['label_offset']):
+            dx, dy = per_province[acr]['label_offset']
+            label_x += dx
+            label_y += dy
+            source += " + label_offset"
+
+        print(f"{acr:4s}: ({label_x:12.2f}, {label_y:12.2f})  [{source}]")
+
+    print("=" * 70 + "\n")
 
     # create 2x2 axes
     fig, axes = plt.subplots(2, 2, figsize=figsize)
@@ -106,7 +153,7 @@ def plot_2x2_panels(
                 acr_to_color[a] = color
                 acr_to_linestyle[a] = linestyle
 
-        # base map boundaries (context)
+        # base map boundaries (context) - plot once
         gdf.boundary.plot(ax=ax, color='black', linewidth=0.25, zorder=1)
 
         # prepare plot coloring: fill only panel-selected provinces
@@ -114,17 +161,15 @@ def plot_2x2_panels(
         gdf_plot['fill_color'] = 'white'
         gdf_plot['edge_style'] = 'solid'
 
-        for _, row in gdf_plot.iterrows():
-            acr = row['ACRONYM']
-            if acr in panel_acronyms:
-                gdf_plot.loc[gdf_plot['ACRONYM'] == acr, 'fill_color'] = acr_to_color.get(acr, 'white')
-                gdf_plot.loc[gdf_plot['ACRONYM'] == acr, 'edge_style'] = acr_to_linestyle.get(acr, 'solid')
+        # Vectorized assignment instead of iterrows
+        for acr in panel_acronyms:
+            mask = gdf_plot['ACRONYM'] == acr
+            gdf_plot.loc[mask, 'fill_color'] = acr_to_color.get(acr, 'white')
+            gdf_plot.loc[mask, 'edge_style'] = acr_to_linestyle.get(acr, 'solid')
 
-        # Plot provinces with appropriate styling
-        for _, row in gdf_plot.iterrows():
-            linestyle = row['edge_style']
-            color = row['fill_color']
-            gdf_plot[gdf_plot.index == row.name].plot(
+        # Group by style to minimize plot calls
+        for (color, linestyle), group in gdf_plot.groupby(['fill_color', 'edge_style']):
+            group.plot(
                 ax=ax,
                 color=color,
                 edgecolor='black',
@@ -134,21 +179,20 @@ def plot_2x2_panels(
             )
 
         # labels for all provinces
-        atlantic_set = {'NL', 'PE', 'NS', 'NB'}
         for _, row in gdf[gdf['ACRONYM'].notna()].iterrows():
             acr = row['ACRONYM']
 
-            # compute label position
-            if acr in per_province and 'xy' in per_province and validate_xy(per_province[acr]['xy']):
+            # compute label position - FIXED: check dictionary keys properly
+            if acr in per_province and 'xy' in per_province[acr] and validate_xy(per_province[acr]['xy']):
                 label_x, label_y = per_province[acr]['xy']
-            elif acr in atlantic_manual_offsets and validate_xy(atlantic_manual_offsets[acr]):
+            elif acr in atlantic_manual_offsets and validate_xy(atlantic_manual_offsets.get(acr)):
                 label_x, label_y = atlantic_manual_offsets[acr]
             elif acr in atlantic_set:
                 centroid = row.geometry.centroid
                 cx, cy = centroid.x, centroid.y
                 if acr == 'NL':
                     label_x, label_y = cx + x_off_global, cy + y_off_global * 1.0
-                elif acr == 'PE':
+                elif acr == 'PEI':
                     label_x, label_y = cx + x_off_global, cy + y_off_global * 1.5
                 elif acr == 'NS':
                     label_x, label_y = cx + x_off_global, cy - y_off_global * 0.5
@@ -159,7 +203,7 @@ def plot_2x2_panels(
                 label_x, label_y = centroid.x, centroid.y
 
             # apply label_offset if provided
-            if acr in per_province and 'label_offset' in per_province and validate_xy(
+            if acr in per_province and 'label_offset' in per_province[acr] and validate_xy(
                     per_province[acr]['label_offset']):
                 dx, dy = per_province[acr]['label_offset']
                 label_x += dx
@@ -190,7 +234,7 @@ def plot_2x2_panels(
                 ))
             ax.legend(handles=panel_legend_handles,
                       loc='upper right',
-                      bbox_to_anchor=(0.98, 0.85),
+                      bbox_to_anchor=(0.98, 0.88),
                       frameon=False,
                       fontsize=10)
 
@@ -219,11 +263,11 @@ panel_definitions = [
 # Define colors per panel
 panel_legend_items = {
     0: {
-        "PRO engaged in urban forestry": {
+        "PRO engaged\nin urban forestry": {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'QC']
         },
-        "PRO not engaged in urban forestry": {
+        "PRO not engaged\nin urban forestry": {
             "color": "#8FBC8F",
             "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB']
         }
@@ -270,7 +314,17 @@ panel_legend_items = {
 
 per_province_example = {
     'BC': {'fontsize': 12},
-    'NL': {'fontsize': 9}
+    'QC': {'fontsize': 12},
+    'AB': {'fontsize': 12},
+    'SK': {'fontsize': 12},
+    'YT': {'xy': (4233952.37, 3695000.25), 'fontsize': 12},  # Manual control
+    'NT': {'xy': (4927480.76, 3328827.18), 'fontsize': 12},  # Manual control
+    'NU': {'xy': (5983431.05, 3328827.33), 'fontsize': 12},  # Manual control
+    'ON': {'xy': (6645027.05, 1642475.10), 'fontsize': 12},  # Manual control
+    'NL': {'xy': (8545714.44, 2692888.93), 'fontsize': 12},  # Manual control
+    #'PEI': {'xy': (8676373.85, 1834420.28), 'fontsize': 12},  # Manual control
+    #'NS': {'xy': (8719100.60, 1425934.28), 'fontsize': 12},  # Manual control
+    #'NB': {'xy': (8437731.26, 1414444.35), 'fontsize': 12},  # Manual control
 }
 
 # -------------------------
@@ -285,8 +339,6 @@ fig, axes = plot_2x2_panels(
     atlantic_manual_offsets=None,
     per_province=per_province_example,
     panel_legend_items=panel_legend_items,
-    title_y=.95,
-    legend_bbox=(0.75, 0.85),
-    label_bbox=False,
+    title_y=.92,
     save_path=None
 )
