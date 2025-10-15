@@ -39,10 +39,10 @@ def plot_2x2_panels(
         atlantic_offset_y_frac=0.03,
         atlantic_manual_offsets=None,
         per_province=None,
-        panel_legend_items=None,  # Changed to panel-specific
-        title_y=0.98,  # Control title vertical position (0-1, higher = closer to top)
-        legend_bbox=(0.75, 0.96),  # Control legend position (x, y) in figure coordinates
-        label_bbox=False,  # Control whether labels have grey background boxes
+        panel_legend_items=None,
+        title_y=0.98,
+        legend_bbox=(0.75, 0.96),
+        label_bbox=False,
         save_path=None,
 ):
     if len(panel_definitions) != 4:
@@ -51,14 +51,6 @@ def plot_2x2_panels(
     per_province = per_province or {}
     atlantic_manual_offsets = atlantic_manual_offsets or {}
     panel_legend_items = panel_legend_items or {}
-
-    # Set defaults for new parameters
-    if title_y is None:
-        title_y = 0.98
-    if legend_bbox is None:
-        legend_bbox = (0.75, 0.96)
-    if label_bbox is None:
-        label_bbox = False
 
     def validate_xy(xy):
         if xy is None:
@@ -102,7 +94,7 @@ def plot_2x2_panels(
         acr_to_color = {}
         acr_to_linestyle = {}
         for acr in gdf['ACRONYM'].dropna().unique():
-            acr_to_color[acr] = 'white'  # Default to white
+            acr_to_color[acr] = 'white'
             acr_to_linestyle[acr] = 'solid'
 
         # Apply legend colors to this panel
@@ -147,13 +139,10 @@ def plot_2x2_panels(
             acr = row['ACRONYM']
 
             # compute label position
-            label_xy_valid = False
             if acr in per_province and 'xy' in per_province and validate_xy(per_province[acr]['xy']):
                 label_x, label_y = per_province[acr]['xy']
-                label_xy_valid = True
             elif acr in atlantic_manual_offsets and validate_xy(atlantic_manual_offsets[acr]):
                 label_x, label_y = atlantic_manual_offsets[acr]
-                label_xy_valid = True
             elif acr in atlantic_set:
                 centroid = row.geometry.centroid
                 cx, cy = centroid.x, centroid.y
@@ -165,11 +154,9 @@ def plot_2x2_panels(
                     label_x, label_y = cx + x_off_global, cy - y_off_global * 0.5
                 else:  # NB
                     label_x, label_y = cx + x_off_global, cy - y_off_global * 1.0
-                label_xy_valid = True
             else:
                 centroid = row.geometry.centroid
                 label_x, label_y = centroid.x, centroid.y
-                label_xy_valid = True
 
             # apply label_offset if provided
             if acr in per_province and 'label_offset' in per_province and validate_xy(
@@ -180,7 +167,7 @@ def plot_2x2_panels(
 
             # fontsize and bbox
             fontsize = per_province.get(acr, {}).get('fontsize', 10)
-            bbox_flag = per_province.get(acr, {}).get('bbox', label_bbox)  # Use global default
+            bbox_flag = per_province.get(acr, {}).get('bbox', label_bbox)
             if bbox_flag:
                 bbox_kwargs = dict(boxstyle="round,pad=0.12", fc="#F5F5F5", ec='none', alpha=0.95)
                 ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center', fontweight='bold', zorder=5,
@@ -191,52 +178,57 @@ def plot_2x2_panels(
         # title for the panel
         ax.set_title(title, fontsize=11, fontweight='bold', y=title_y)
 
+        # Add legend for this panel (skip panel 3)
+        if legend_items and panel_idx != 3:
+            panel_legend_handles = []
+            for label, settings in legend_items.items():
+                panel_legend_handles.append(Patch(
+                    facecolor=settings['color'],
+                    edgecolor='black',
+                    linestyle=settings.get('linestyle', 'solid'),
+                    label=label
+                ))
+            ax.legend(handles=panel_legend_handles,
+                      loc='upper right',
+                      bbox_to_anchor=(0.98, 0.85),
+                      frameon=False,
+                      fontsize=10)
+
         # ALL PANELS USE THE SAME EXTENT (no zoom)
         ax.set_xlim(xmin_p, xmax_p)
         ax.set_ylim(ymin_p, ymax_p)
         ax.set_axis_off()
 
-    # overall legend - build from panel 0's legend items as example
-    if 0 in panel_legend_items and panel_legend_items[0]:
-        legend_handles = []
-        for label, settings in panel_legend_items[0].items():
-            legend_handles.append(Patch(
-                facecolor=settings['color'],
-                edgecolor='black',
-                linestyle=settings.get('linestyle', 'solid'),
-                label=label
-            ))
-        fig.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(0.98, 0.96), frameon=True, fontsize=9)
-
-    plt.tight_layout(rect=[0, 0, 0.98, 0.98])
+    plt.tight_layout(rect=[0, 0, 1, 1])
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.show()
     return fig, axes
+
 
 # -------------------------
 # Define panels with custom coloring per panel
 # -------------------------
 panel_definitions = [
     ("Forestry Professional\nRegulatory Organizations", ['BC', 'AB', 'SK', 'ON', 'QC', 'NL', 'NS', 'NB']),
-    ("Apprenticeship and Skilled Trades Agency", ['BC', 'ON', 'QC', 'NS', 'NB']),
+    ("Apprenticeship and\nSkilled Trades Agencies", ['BC', 'ON', 'QC', 'NS', 'NB']),
     ("International Society\nof Arboriculture Chapters", ['BC', 'AB', 'SK', 'MB', 'ON', 'QC', 'NL', 'PEI', 'NS', 'NB']),
-    ("Other Arboricultural Professional Associations", ['BC', 'ON', 'MB']),
+    ("Other Arboricultural\nProfessional Associations", ['BC', 'ON', 'MB']),
 ]
 
 # Define colors per panel
 panel_legend_items = {
-    0: {  # Panel 0: Forestry Professional Regulatory Organizations
+    0: {
         "PRO engaged in urban forestry": {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'QC']
         },
         "PRO not engaged in urban forestry": {
             "color": "#8FBC8F",
-            "acronyms": ['ON']
+            "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB']
         }
     },
-    1: {  # Panel 1: Apprenticeship and Skilled Trades Agencies
+    1: {
         "In effect": {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'NS', 'NB']
@@ -246,25 +238,29 @@ panel_legend_items = {
             "acronyms": ['QC']
         },
     },
-    2: {  # Panel 2: ISA Chapter
+    2: {
         "Pacific Northwest Chapter": {
-            "color": "#006400",
+            "color": "#009DAE",
             "acronyms": ['BC']
         },
         "Prairie Chapter": {
-            "color": "#006400",
+            "color": "#DFAF2C",
             "acronyms": ['AB', 'SK', 'MB'],
         },
         "Ontario Chapter": {
-            "color": "#8FBC8F",
+            "color": "#D02E2E",
             "acronyms": ['ON']
         },
+        "Quebec Chapter": {
+            "color": "#003DA5",
+            "acronyms": ['QC']
+        },
         "Atlantic Chapter": {
-            "color": "#808080",
+            "color": "#0F52BA",
             "acronyms": ['NL', 'PEI', 'NS', 'NB']
         }
     },
-    3: {  # Panel 3: Other Arboricultural Professional Associations
+    3: {
         "Dark green (BC)": {
             "color": "#006400",
             "acronyms": ['BC', 'MB', 'ON']
@@ -273,8 +269,8 @@ panel_legend_items = {
 }
 
 per_province_example = {
-    'BC': {'xy': None, 'fontsize': 12, 'bbox': True},
-    'NL': {'xy': None, 'fontsize': 9, 'bbox': True}
+    'BC': {'fontsize': 12},
+    'NL': {'fontsize': 9}
 }
 
 # -------------------------
@@ -289,8 +285,8 @@ fig, axes = plot_2x2_panels(
     atlantic_manual_offsets=None,
     per_province=per_province_example,
     panel_legend_items=panel_legend_items,
-    title_y=1.02,  # Move titles closer to top (higher value = closer to top edge)
-    legend_bbox=(0.75, 0.96),  # Move legend more toward center (lower x value = more centered)
-    label_bbox=False,  # Remove grey background from province labels
+    title_y=.95,
+    legend_bbox=(0.75, 0.85),
+    label_bbox=False,
     save_path=None
 )
