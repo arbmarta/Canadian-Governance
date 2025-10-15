@@ -32,7 +32,7 @@ provinces['ACRONYM'] = provinces['PRNAME'].map(province_acronyms)
 def plot_1x2_panels(
         panel_definitions,
         gdf=provinces,
-        figsize=(14, 12),
+        figsize=(14, 6),
         pad=0.04,
         north_extra=0.09,
         atlantic_offset_x_frac=0.06,
@@ -44,7 +44,7 @@ def plot_1x2_panels(
         legend_bbox=(0.75, 0.96),
         label_bbox=False,
         save_path=None,
-        nrows=2,
+        nrows=1,
         ncols=2,
 ):
     if len(panel_definitions) != nrows * ncols:
@@ -131,7 +131,7 @@ def plot_1x2_panels(
     print("=" * 70 + "\n")
 
     # create 1x2 axes
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
     axes = axes.flatten()
 
     # iterate panels
@@ -150,6 +150,9 @@ def plot_1x2_panels(
 
         # Apply legend colors to this panel
         for label, settings in legend_items.items():
+            # Skip subtitle entries
+            if settings.get('is_subtitle', False):
+                continue
             color = settings['color']
             acrs = settings['acronyms']
             linestyle = settings.get('linestyle', 'solid')
@@ -246,23 +249,62 @@ def plot_1x2_panels(
                         fontweight='bold', zorder=5, color=text_color)
 
         # title for the panel
-        ax.set_title(title, fontsize=13, fontweight='bold', y=title_y)
+        ax.set_title(title, fontsize=16, fontweight='bold', y=title_y)
 
-        # Add legend for this panel (skip panel 3)
-        if legend_items and panel_idx != 3:
+        # Add legend for this panel
+        if legend_items:
             panel_legend_handles = []
-            for label, settings in legend_items.items():
-                panel_legend_handles.append(Patch(
-                    facecolor=settings['color'],
-                    edgecolor='black',
-                    linestyle=settings.get('linestyle', 'solid'),
-                    label=label
-                ))
-            ax.legend(handles=panel_legend_handles,
-                      loc='upper right',
-                      bbox_to_anchor=(0.98, 0.88),
-                      frameon=False,
-                      fontsize=11)
+            subtitle_indices = []
+            seen_labels = set()  # Track unique labels
+
+            for idx, (label, settings) in enumerate(legend_items.items()):
+                clean_label = label.strip()  # Remove trailing/leading spaces
+
+                # Check if this is a subtitle
+                if settings.get('is_subtitle', False):
+                    # Add extra spacing before "Some Activities"
+                    if clean_label == "Some Activities":
+                        # Add invisible spacer
+                        panel_legend_handles.append(Patch(
+                            facecolor='none',
+                            edgecolor='none',
+                            label=' '
+                        ))
+
+                    # Add subtitle as text-only entry
+                    panel_legend_handles.append(Patch(
+                        facecolor='none',
+                        edgecolor='none',
+                        label=clean_label
+                    ))
+                    subtitle_indices.append(len(panel_legend_handles) - 1)
+                else:
+                    # Regular legend entry with color - only add if not seen before
+                    if clean_label not in seen_labels:
+                        seen_labels.add(clean_label)
+                        panel_legend_handles.append(Patch(
+                            facecolor=settings['color'],
+                            edgecolor='black',
+                            linestyle=settings.get('linestyle', 'solid'),
+                            label=clean_label
+                        ))
+
+            # Set different bbox_to_anchor based on panel
+            if panel_idx == 0:
+                bbox_anchor = (1.05, .80)  # Lower for panel 0
+            else:
+                bbox_anchor = (1.05, .85)  # Higher for panel 1
+
+            legend = ax.legend(handles=panel_legend_handles,
+                               loc='upper right',
+                               bbox_to_anchor=bbox_anchor,
+                               frameon=False,
+                               fontsize=13,
+                               ncol=1)
+
+            # Make subtitle entries bold
+            for i in subtitle_indices:
+                legend.get_texts()[i].set_weight('bold')
 
         # ALL PANELS USE THE SAME EXTENT (no zoom)
         ax.set_xlim(xmin_p, xmax_p)
@@ -277,40 +319,58 @@ def plot_1x2_panels(
 
 
 # -------------------------
-# Define panels with custom coloring per panel
+# Define panels - ONLY 2 PANELS FOR 1x2 GRID
 # -------------------------
 panel_definitions = [
-    ("Forestry Professional\nRegulatory Organizations", ['BC', 'AB', 'SK', 'ON', 'QC', 'NL', 'NS', 'NB']),
-    ("Apprenticeship and\nSkilled Trades Agencies", ['BC', 'ON', 'QC', 'NS', 'NB']),
-    ("International Society\nof Arboriculture Chapters", ['BC', 'AB', 'SK', 'MB', 'ON', 'QC', 'NL', 'PEI', 'NS', 'NB']),
-    ("Other Arboricultural\nProfessional Associations", ['BC', 'ON', 'MB']),
+    ("Right to Title", ['BC', 'AB', 'SK', 'ON', 'QC', 'NL', 'NS', 'NB']),
+    ("Right to Practice", ['BC', 'ON', 'QC', 'NS', 'NB', 'MB', 'SK']),
 ]
 
-# Define colors per panel
+# Define colors per panel with subtitles for panel 1
 panel_legend_items = {
     0: {
-        'Right to Title for "Urban Forester"': {
+        'Registered Professional Forester': {
             "color": "#006400",
-            "acronyms": ['BC', 'ON', 'QC'],
-            "text_color": "white"  # White text on dark green
+            "acronyms": ['BC', 'ON', 'QC', 'AB', 'SK'],
+            "text_color": "white"
         },
-        'Right to Title for "Arborist"': {
+        'Registered Professional Forester ': {
+            "color": "#006400",
+            "acronyms": ['NL', 'NS', 'NB'],
+            "text_color": "black"
+        },
+        'Arborist': {
             "color": "#8FBC8F",
-            "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB'],
-            "text_color": "black"  # Black text on light green
+            "acronyms": ['AB', 'SK'],
+            "text_color": "black"
         }
     },
     1: {
-        "In effect": {
+        "All Activities": {
+            "is_subtitle": True,
+            "color": "none",
+            "acronyms": []
+        },
+        "Urban forestry": {
             "color": "#006400",
-            "acronyms": ['BC', 'ON'],
+            "acronyms": ['BC', 'QC'],
             "text_color": "white"
         },
-        "In effect ": {  # Note the space to make it unique
-            "color": "#006400",
-            "acronyms": ['NS', 'NB'],
+        "Some Activities": {
+            "is_subtitle": True,
+            "color": "none",
+            "acronyms": []
+        },
+        "Urban forestry ": {
+            "color": "#8FBC8F",
+            "acronyms": ['ON'],
             "text_color": "black"
         },
+        "Arboriculture": {
+            "color": "#ADD8E6",
+            "acronyms": ['MB', 'SK'],
+            "text_color": "black"
+        }
     }
 }
 
@@ -330,25 +390,25 @@ per_province_example = {
     'NL': {
         'xy': (8545714.44, 2732888.93),
         'fontsize': 12,
-        'leader_line': True,
-        'line_start': (8245714.44, 2492888.93)  # Offset from centroid
+        'leader_line': False,
+        'line_start': (8245714.44, 2492888.93)
     },
     'PEI': {
         'xy': (8876373.85, 1734420.28),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8576373.85, 1784420.28)
     },
     'NS': {
         'xy': (8627052.60, 1373934.28),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8419100.60, 1425934.28)
     },
     'NB': {
         'xy': (7997731.26, 1194444.35),
         'fontsize': 12,
-        'leader_line': True,
+        'leader_line': False,
         'line_start': (8337731.26, 1414444.35)
     },
 }
@@ -359,12 +419,14 @@ per_province_example = {
 fig, axes = plot_1x2_panels(
     panel_definitions=panel_definitions,
     gdf=provinces,
-    figsize=(14, 12),
+    figsize=(14, 6),
     pad=0.045,
     north_extra=0.09,
     atlantic_manual_offsets=None,
     per_province=per_province_example,
     panel_legend_items=panel_legend_items,
     title_y=.92,
-    save_path=None
+    save_path='Figures/Figure 3 - Rights to Title and Practice.pdf',
+    nrows=1,
+    ncols=2
 )
