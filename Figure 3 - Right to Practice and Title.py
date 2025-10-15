@@ -249,7 +249,7 @@ def plot_1x2_panels(
                         fontweight='bold', zorder=5, color=text_color)
 
         # title for the panel
-        ax.set_title(title, fontsize=16, fontweight='bold', y=title_y)
+        ax.set_title(title, fontsize=18, fontweight='bold', y=title_y)
 
         # Add legend for this panel
         if legend_items:
@@ -279,9 +279,19 @@ def plot_1x2_panels(
                     ))
                     subtitle_indices.append(len(panel_legend_handles) - 1)
                 else:
-                    # Regular legend entry with color - only add if not seen before
-                    if clean_label not in seen_labels:
-                        seen_labels.add(clean_label)
+                    # Regular legend entry with color
+                    # For panel 0 (Right to Title), only add if not seen before
+                    if panel_idx == 0:
+                        if clean_label not in seen_labels:
+                            seen_labels.add(clean_label)
+                            panel_legend_handles.append(Patch(
+                                facecolor=settings['color'],
+                                edgecolor='black',
+                                linestyle=settings.get('linestyle', 'solid'),
+                                label=clean_label
+                            ))
+                    else:
+                        # For other panels, add all entries
                         panel_legend_handles.append(Patch(
                             facecolor=settings['color'],
                             edgecolor='black',
@@ -291,15 +301,15 @@ def plot_1x2_panels(
 
             # Set different bbox_to_anchor based on panel
             if panel_idx == 0:
-                bbox_anchor = (1.05, .80)  # Lower for panel 0
+                bbox_anchor = (1, .85)  # Lower for panel 0
             else:
-                bbox_anchor = (1.05, .85)  # Higher for panel 1
+                bbox_anchor = (1.15, .9)  # Higher for panel 1
 
             legend = ax.legend(handles=panel_legend_handles,
                                loc='upper right',
                                bbox_to_anchor=bbox_anchor,
                                frameon=False,
-                               fontsize=13,
+                               fontsize=15,
                                ncol=1)
 
             # Make subtitle entries bold
@@ -322,26 +332,26 @@ def plot_1x2_panels(
 # Define panels - ONLY 2 PANELS FOR 1x2 GRID
 # -------------------------
 panel_definitions = [
-    ("Right to Title", ['BC', 'AB', 'SK', 'ON', 'QC', 'NL', 'NS', 'NB']),
-    ("Right to Practice", ['BC', 'ON', 'QC', 'NS', 'NB', 'MB', 'SK']),
+    ("Right to Title", ['MB']),
+    ("Right to Practice", ['BC', 'SK', 'MB', 'ON', 'QC']),
 ]
 
 # Define colors per panel with subtitles for panel 1
 panel_legend_items = {
     0: {
-        'Registered Professional Forester': {
-            "color": "#006400",
-            "acronyms": ['BC', 'ON', 'QC', 'AB', 'SK'],
-            "text_color": "white"
-        },
-        'Registered Professional Forester ': {
-            "color": "#006400",
-            "acronyms": ['NL', 'NS', 'NB'],
-            "text_color": "black"
-        },
+        #'Registered Professional Forester': {
+         #   "color": "#006400",
+          #  "acronyms": ['BC', 'ON', 'QC', 'AB', 'SK'],
+           # "text_color": "white"
+        #},
+        #'Registered Professional Forester ': {
+         #   "color": "#006400",
+          #  "acronyms": ['NL', 'NS', 'NB'],
+           # "text_color": "black"
+        #},
         'Arborist': {
-            "color": "#8FBC8F",
-            "acronyms": ['AB', 'SK'],
+            "color": "#4682B4",
+            "acronyms": ['MB'],
             "text_color": "black"
         }
     },
