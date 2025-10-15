@@ -244,7 +244,7 @@ def plot_2x2_panels(
                         fontweight='bold', zorder=5, color=text_color)
 
         # title for the panel
-        ax.set_title(title, fontsize=11, fontweight='bold', y=title_y)
+        ax.set_title(title, fontsize=16, fontweight='bold', y=title_y)
 
         # Add legend for this panel (skip panel 3)
         if legend_items and panel_idx != 3:
@@ -258,9 +258,9 @@ def plot_2x2_panels(
                 ))
             ax.legend(handles=panel_legend_handles,
                       loc='upper right',
-                      bbox_to_anchor=(0.98, 0.88),
+                      bbox_to_anchor=(1.05, 0.90),
                       frameon=False,
-                      fontsize=10)
+                      fontsize=14)
 
         # ALL PANELS USE THE SAME EXTENT (no zoom)
         ax.set_xlim(xmin_p, xmax_p)
@@ -287,54 +287,54 @@ panel_definitions = [
 # Define colors per panel
 panel_legend_items = {
     0: {
-        "PRO engaged\nin urban forestry": {
+        "Engaged in\nurban forestry": {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'QC'],
             "text_color": "white"  # White text on dark green
         },
-        "PRO not engaged\nin urban forestry": {
+        "Not engaged in\nurban forestry": {
             "color": "#8FBC8F",
             "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB'],
             "text_color": "black"  # Black text on light green
         }
     },
     1: {
-        "In effect": {
+        "In force": {
             "color": "#006400",
             "acronyms": ['BC', 'ON', 'NS', 'NB'],
             "text_color": "white"
         },
-        "Coming into effect": {
+        "Coming into force": {
             "color": "#8FBC8F",
             "acronyms": ['QC'],
             "text_color": "black"
         },
     },
     2: {
-        "Pacific Northwest Chapter": {
+        "Pacific Northwest": {
             "color": "#009DAE",
             "acronyms": ['BC'],
             "text_color": "white"
         },
-        "Prairie Chapter": {
+        "Prairie": {
             "color": "#DFAF2C",
             "acronyms": ['AB', 'SK', 'MB'],
             "text_color": "black"
         },
-        "Ontario Chapter": {
+        "Ontario": {
             "color": "#D02E2E",
             "acronyms": ['ON'],
             "text_color": "white"
         },
-        "Quebec Chapter": {
+        "Quebec": {
             "color": "#003DA5",
             "acronyms": ['QC'],
             "text_color": "white"
         },
-        "Atlantic Chapter": {
+        "Atlantic": {
             "color": "#0F52BA",
             "acronyms": ['NL', 'PEI', 'NS', 'NB'],
-            "text_color": "black"
+            "text_color": "black"  # Black text for Atlantic provinces
         }
     },
     3: {
@@ -372,7 +372,7 @@ per_province_example = {
         'line_start': (8576373.85, 1784420.28)
     },
     'NS': {
-        'xy': (8627052.60, 1362934.28),
+        'xy': (8627052.60, 1373934.28),
         'fontsize': 12,
         'leader_line': True,
         'line_start': (8419100.60, 1425934.28)
