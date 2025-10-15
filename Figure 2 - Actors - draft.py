@@ -140,18 +140,22 @@ def plot_2x2_panels(
         # Build color map for this panel
         acr_to_color = {}
         acr_to_linestyle = {}
+        acr_to_text_color = {}
         for acr in gdf['ACRONYM'].dropna().unique():
             acr_to_color[acr] = 'white'
             acr_to_linestyle[acr] = 'solid'
+            acr_to_text_color[acr] = 'black'
 
         # Apply legend colors to this panel
         for label, settings in legend_items.items():
             color = settings['color']
             acrs = settings['acronyms']
             linestyle = settings.get('linestyle', 'solid')
+            text_color = settings.get('text_color', 'black')
             for a in acrs:
                 acr_to_color[a] = color
                 acr_to_linestyle[a] = linestyle
+                acr_to_text_color[a] = text_color
 
         # base map boundaries (context) - plot once
         gdf.boundary.plot(ax=ax, color='black', linewidth=0.25, zorder=1)
@@ -182,14 +186,16 @@ def plot_2x2_panels(
         for _, row in gdf[gdf['ACRONYM'].notna()].iterrows():
             acr = row['ACRONYM']
 
-            # compute label position - FIXED: check dictionary keys properly
+            # Get the actual centroid
+            centroid = row.geometry.centroid
+            cx, cy = centroid.x, centroid.y
+
+            # compute label position
             if acr in per_province and 'xy' in per_province[acr] and validate_xy(per_province[acr]['xy']):
                 label_x, label_y = per_province[acr]['xy']
             elif acr in atlantic_manual_offsets and validate_xy(atlantic_manual_offsets.get(acr)):
                 label_x, label_y = atlantic_manual_offsets[acr]
             elif acr in atlantic_set:
-                centroid = row.geometry.centroid
-                cx, cy = centroid.x, centroid.y
                 if acr == 'NL':
                     label_x, label_y = cx + x_off_global, cy + y_off_global * 1.0
                 elif acr == 'PEI':
@@ -199,8 +205,7 @@ def plot_2x2_panels(
                 else:  # NB
                     label_x, label_y = cx + x_off_global, cy - y_off_global * 1.0
             else:
-                centroid = row.geometry.centroid
-                label_x, label_y = centroid.x, centroid.y
+                label_x, label_y = cx, cy
 
             # apply label_offset if provided
             if acr in per_province and 'label_offset' in per_province[acr] and validate_xy(
@@ -209,15 +214,34 @@ def plot_2x2_panels(
                 label_x += dx
                 label_y += dy
 
+            # Draw leader line if enabled
+            draw_leader = per_province.get(acr, {}).get('leader_line', False)
+            if draw_leader:
+                # Get line start point (can be offset from centroid)
+                line_start = per_province.get(acr, {}).get('line_start', None)
+                if line_start and validate_xy(line_start):
+                    line_x, line_y = line_start
+                else:
+                    line_x, line_y = cx, cy
+
+                # Only draw if label is significantly offset
+                if abs(label_x - line_x) > 1000 or abs(label_y - line_y) > 1000:
+                    ax.plot([line_x, label_x], [line_y, label_y],
+                            color='black', linewidth=0.5, linestyle='-',
+                            alpha=0.6, zorder=4)
+
             # fontsize and bbox
             fontsize = per_province.get(acr, {}).get('fontsize', 10)
             bbox_flag = per_province.get(acr, {}).get('bbox', label_bbox)
+            text_color = acr_to_text_color.get(acr, 'black')
+
             if bbox_flag:
                 bbox_kwargs = dict(boxstyle="round,pad=0.12", fc="#F5F5F5", ec='none', alpha=0.95)
-                ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center', fontweight='bold', zorder=5,
-                        bbox=bbox_kwargs)
+                ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center',
+                        fontweight='bold', zorder=5, color=text_color, bbox=bbox_kwargs)
             else:
-                ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center', fontweight='bold', zorder=5)
+                ax.text(label_x, label_y, acr, fontsize=fontsize, ha='center', va='center',
+                        fontweight='bold', zorder=5, color=text_color)
 
         # title for the panel
         ax.set_title(title, fontsize=11, fontweight='bold', y=title_y)
@@ -265,49 +289,59 @@ panel_legend_items = {
     0: {
         "PRO engaged\nin urban forestry": {
             "color": "#006400",
-            "acronyms": ['BC', 'ON', 'QC']
+            "acronyms": ['BC', 'ON', 'QC'],
+            "text_color": "white"  # White text on dark green
         },
         "PRO not engaged\nin urban forestry": {
             "color": "#8FBC8F",
-            "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB']
+            "acronyms": ['AB', 'SK', 'NL', 'NS', 'NB'],
+            "text_color": "black"  # Black text on light green
         }
     },
     1: {
         "In effect": {
             "color": "#006400",
-            "acronyms": ['BC', 'ON', 'NS', 'NB']
+            "acronyms": ['BC', 'ON', 'NS', 'NB'],
+            "text_color": "white"
         },
         "Coming into effect": {
             "color": "#8FBC8F",
-            "acronyms": ['QC']
+            "acronyms": ['QC'],
+            "text_color": "black"
         },
     },
     2: {
         "Pacific Northwest Chapter": {
             "color": "#009DAE",
-            "acronyms": ['BC']
+            "acronyms": ['BC'],
+            "text_color": "white"
         },
         "Prairie Chapter": {
             "color": "#DFAF2C",
             "acronyms": ['AB', 'SK', 'MB'],
+            "text_color": "black"
         },
         "Ontario Chapter": {
             "color": "#D02E2E",
-            "acronyms": ['ON']
+            "acronyms": ['ON'],
+            "text_color": "white"
         },
         "Quebec Chapter": {
             "color": "#003DA5",
-            "acronyms": ['QC']
+            "acronyms": ['QC'],
+            "text_color": "white"
         },
         "Atlantic Chapter": {
             "color": "#0F52BA",
-            "acronyms": ['NL', 'PEI', 'NS', 'NB']
+            "acronyms": ['NL', 'PEI', 'NS', 'NB'],
+            "text_color": "white"
         }
     },
     3: {
         "Dark green (BC)": {
             "color": "#006400",
-            "acronyms": ['BC', 'MB', 'ON']
+            "acronyms": ['BC', 'MB', 'ON'],
+            "text_color": "white"
         }
     }
 }
@@ -319,15 +353,36 @@ per_province_example = {
     'SK': {'fontsize': 12},
     'MB': {'fontsize': 12},
 
-    'YT': {'xy': (4233952.37, 3695000.25), 'fontsize': 12},  # Good
-    'NT': {'xy': (4927480.76, 3328827.18), 'fontsize': 12},  # Good
-    'NB': {'xy': (7997731.26, 1194444.35), 'fontsize': 12},  # Good
-    'ON': {'xy': (6645027.05, 1642475.10), 'fontsize': 12},  # Good
-    'NL': {'xy': (8545714.44, 2732888.93), 'fontsize': 12},  # Good
-    'NU': {'xy': (5983431.05, 3209827.33), 'fontsize': 12},  # Good
-    'PEI': {'xy': (8876373.85, 1734420.28), 'fontsize': 12},  # Good
+    'YT': {'xy': (4233952.37, 3695000.25), 'fontsize': 12},
+    'NT': {'xy': (4927480.76, 3328827.18), 'fontsize': 12},
+    'NU': {'xy': (5983431.05, 3209827.33), 'fontsize': 12},
+    'ON': {'xy': (6645027.05, 1642475.10), 'fontsize': 12},
 
-    'NS': {'xy': (8627052.60, 1373934.28), 'fontsize': 12},  # Manual control # change 73 to 78
+    # Atlantic provinces with leader lines
+    'NL': {
+        'xy': (8545714.44, 2732888.93),
+        'fontsize': 12,
+        'leader_line': True,
+        'line_start': (8245714.44, 2492888.93)  # Offset from centroid
+    },
+    'PEI': {
+        'xy': (8876373.85, 1734420.28),
+        'fontsize': 12,
+        'leader_line': True,
+        'line_start': (8576373.85, 1784420.28)
+    },
+    'NS': {
+        'xy': (8627052.60, 1373934.28),
+        'fontsize': 12,
+        'leader_line': True,
+        'line_start': (8419100.60, 1425934.28)
+    },
+    'NB': {
+        'xy': (7997731.26, 1194444.35),
+        'fontsize': 12,
+        'leader_line': True,
+        'line_start': (8337731.26, 1414444.35)
+    },
 }
 
 # -------------------------
