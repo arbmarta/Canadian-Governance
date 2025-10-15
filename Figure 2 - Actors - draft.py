@@ -334,7 +334,7 @@ panel_legend_items = {
         "Atlantic Chapter": {
             "color": "#0F52BA",
             "acronyms": ['NL', 'PEI', 'NS', 'NB'],
-            "text_color": "white"
+            "text_color": "black"
         }
     },
     3: {
@@ -372,7 +372,7 @@ per_province_example = {
         'line_start': (8576373.85, 1784420.28)
     },
     'NS': {
-        'xy': (8627052.60, 1373934.28),
+        'xy': (8627052.60, 1362934.28),
         'fontsize': 12,
         'leader_line': True,
         'line_start': (8419100.60, 1425934.28)
